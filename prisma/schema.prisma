@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  sessions     Session[]
+  applications Application[]
+}
+
+model Session {
+  // SHA-256 of the session token; the raw token only ever lives in the cookie.
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum Status {
+  WISHLIST
+  APPLIED
+  ASSESSMENT
+  INTERVIEW
+  OFFER
+  REJECTED
+  WITHDRAWN
+}
+
+model Application {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   String
+  role      String
+  location  String?
+  url       String?
+  status    Status    @default(WISHLIST)
+  appliedAt DateTime?
+  notes     String?
+  // Position within its kanban column (lower = higher up).
+  position  Float     @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  events    StatusEvent[]
+
+  @@index([userId, status, position])
+}
+
+// Every status change is recorded, which powers the funnel and timing stats.
+model StatusEvent {
+  id            String      @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  from          Status?
+  to            Status
+  at            DateTime    @default(now())
+
+  @@index([applicationId])
+}
